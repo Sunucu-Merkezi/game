@@ -1,0 +1,69 @@
+// Yerelde SQLite. PostgreSQL'e geçmek için: provider = "postgresql" ve DATABASE_URL'i değiştir.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String
+  salt         String
+  createdAt    DateTime  @default(now())
+  game         Game?
+  sessions     Session[]
+  audit        AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Her oyuncunun oyunu izole bir satırdır. version: iyimser kilit (aynı aralığın iki kez işlenmesini engeller).
+model Game {
+  id        String        @id @default(cuid())
+  userId    String        @unique
+  company   String
+  state     String
+  version   Int           @default(1)
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger    LedgerEntry[]
+}
+
+// Oyuncunun yaptığı ekonomik işlemlerin kaydı
+model LedgerEntry {
+  id           Int      @id @default(autoincrement())
+  gameId       String
+  gameTime     Int
+  amount       Int
+  note         String
+  balanceAfter Int
+  createdAt    DateTime @default(now())
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, id])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    String?
+  type      String
+  detail    String
+  ip        String
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
